@@ -13,9 +13,10 @@ env/
 *.swp
 
 # Generated data
-data/
+backtest_results/
 results/
 reports/
+data/
 
 # Secrets
 *.pem
@@ -25,3 +26,6 @@ reports/
 # OS
 .DS_Store
 Thumbs.db
+
+# Dashboard static (keep only necessary)
+tape_rewind/dashboard/static/
