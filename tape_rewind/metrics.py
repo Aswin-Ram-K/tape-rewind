@@ -1,38 +1,60 @@
 """
-Tape Rewind — 10-Metric Evaluation Suite.
+Tape Rewind — Metrics Evaluation Suite.
 """
 import numpy as np
 import pandas as pd
 
-def calculate_metrics(trades, equity_curve, regime_data=None):
+def calculate_metrics(trades: list, equity_curve: list, starting_capital: float = 100000) -> dict:
     """
-    Calculate the 10 metrics for a backtest.
+    Calculate 10 metrics from trades and equity curve.
+    
+    Parameters
+    ----------
+    trades : list[dict] - Each trade has 'pnl_pct', 'days_held'
+    equity_curve : list[float] - Portfolio value over time
+    starting_capital : float - Initial capital
+    
+    Returns
+    -------
+    dict - All 10 metrics
     """
     if not trades:
-        return {"status": "NO_TRADES"}
+        return {
+            "total_return": 0.0,
+            "win_rate": 0.0,
+            "profit_factor": 0.0,
+            "max_drawdown": 0.0,
+            "sharpe_ratio": 0.0,
+            "sortino_ratio": 0.0,
+            "win_loss_ratio": 0.0,
+            "avg_duration": 0.0,
+            "calmar_ratio": 0.0,
+            "recovery_bars": 0,
+            "total_trades": 0,
+            "status": "NO_TRADES"
+        }
 
     # 1. Total Return
-    final_cap = equity_curve.iloc[-1]
-    start_cap = equity_curve.iloc[0]
-    total_return = (final_cap - start_cap) / start_cap
+    final_cap = equity_curve[-1] if equity_curve else starting_capital
+    total_return = (final_cap - starting_capital) / starting_capital
 
     # 2. Win Rate
-    wins = [t for t in trades if t["pnl"] > 0]
+    wins = [t for t in trades if t['pnl_pct'] > 0]
     win_rate = len(wins) / len(trades)
 
     # 3. Profit Factor
-    gross_win = sum(t["pnl"] for t in wins)
-    gross_loss = abs(sum(t["pnl"] for t in trades if t["pnl"] < 0))
-    profit_factor = gross_win / gross_loss if gross_loss > 0 else 999
+    gross_win = sum(t['pnl_pct'] for t in wins)
+    gross_loss = abs(sum(t['pnl_pct'] for t in trades if t['pnl_pct'] < 0))
+    profit_factor = gross_win / gross_loss if gross_loss > 0 else 999.0
 
-    # 4. Max Drawdown
+    # 4. Max Drawdown (from equity curve)
     equity = np.array(equity_curve)
     peak = np.maximum.accumulate(equity)
     drawdown = (equity - peak) / peak
-    max_drawdown = np.min(drawdown)
+    max_drawdown = float(np.min(drawdown))
 
-    # 5. Sharpe Ratio
-    daily_returns = np.diff(equity_curve) / equity_curve[:-1]
+    # 5. Sharpe Ratio (annualized)
+    daily_returns = np.diff(equity) / equity[:-1]
     daily_returns = daily_returns[np.isfinite(daily_returns)]
     if len(daily_returns) > 1 and np.std(daily_returns) > 0:
         sharpe = (np.mean(daily_returns) / np.std(daily_returns)) * np.sqrt(252)
@@ -48,26 +70,26 @@ def calculate_metrics(trades, equity_curve, regime_data=None):
         sortino = 0.0
 
     # 7. Win/Loss Ratio
-    avg_win = np.mean([t["pnl"] for t in wins]) if wins else 0
-    avg_loss = np.mean([t["pnl"] for t in trades if t["pnl"] < 0]) if any(t["pnl"] < 0 for t in trades) else 1.0
+    avg_win = np.mean([t['pnl_pct'] for t in wins]) if wins else 0
+    avg_loss = np.mean([t['pnl_pct'] for t in trades if t['pnl_pct'] < 0]) if any(t['pnl_pct'] < 0 for t in trades) else 0
     win_loss_ratio = abs(avg_win / avg_loss) if avg_loss != 0 else 0
 
-    # 8. Avg Trade Duration
-    durations = [t["days"] for t in trades]
-    avg_duration = np.mean(durations)
+    # 8. Avg Duration
+    durations = [t['days_held'] for t in trades]
+    avg_duration = float(np.mean(durations))
 
     # 9. Calmar Ratio
     calmar = total_return / abs(max_drawdown) if max_drawdown != 0 else 0.0
 
-    # 10. Recovery Time (simplified: bars to recover from 50% of max DD)
+    # 10. Recovery Time (bars to recover from peak after max drawdown)
     recovery_bars = 0
-    if max_drawdown < -0.1: # If significant drawdown
-        trough_idx = np.argmin(drawdown)
-        trough_val = equity[trough_idx] * (1 + abs(max_drawdown) * 0.5)
+    if max_drawdown < -0.05:  # If significant drawdown occurred
+        trough_idx = int(np.argmin(drawdown))
+        peak_value = equity[trough_idx] * (1 + abs(max_drawdown))
         post_trough = equity[trough_idx:]
-        recovered = post_trough >= trough_val
+        recovered = post_trough >= peak_value
         if np.any(recovered):
-            recovery_bars = np.argmax(recovered)
+            recovery_bars = int(np.argmax(recovered))
 
     return {
         "total_return": round(total_return, 4),

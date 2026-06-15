@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyc
+venv/
+.venv/
+env/
+.env
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Generated data
+data/
+results/
+reports/
+
+# Secrets
+*.pem
+*.key
+*.env
+
+# OS
+.DS_Store
+Thumbs.db
